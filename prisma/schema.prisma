@@ -1,10 +1,12 @@
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["booking"]
 }
 
 model Service {
@@ -13,4 +15,22 @@ model Service {
   price     Float
   duration  Int
   createdAt DateTime @default(now())
+
+  bookings  Booking[] 
+
+  @@schema("booking")
+}
+
+model Booking {
+  id         String   @id @default(uuid())
+  userId     String
+  serviceId  String
+  startTime  DateTime
+  endTime    DateTime
+  status     String   @default("confirmed")
+  createdAt  DateTime @default(now())
+
+  service    Service  @relation(fields: [serviceId], references: [id])
+
+  @@schema("booking")
 }
