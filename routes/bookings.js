@@ -1,10 +1,15 @@
 // routes/bookings.js
 import express from "express";
 import { PrismaClient } from "@prisma/client";
-import { verifySessionToken } from "@authorizerdev/authorizer-js";
+import Authorizer from "@authorizerdev/authorizer-js";
 
 const router = express.Router();
 const prisma = new PrismaClient();
+
+const authorizerRef = new Authorizer({
+  authorizerURL: process.env.AUTHORIZER_URL,
+  clientID: process.env.AUTHORIZER_CLIENT_ID,
+});
 
 // POST /bookings — create a booking with token-authenticated user
 router.post("/bookings", async (req, res) => {
@@ -15,13 +20,8 @@ router.post("/bookings", async (req, res) => {
 
   const token = authHeader.split(" ")[1];
   try {
-    const userInfo = await verifySessionToken({
-      client_id: process.env.AUTHORIZER_CLIENT_ID,
-      token,
-      authorizer_url: process.env.AUTHORIZER_URL,
-    });
-
-    const userId = userInfo.sub;
+    const { user } = await authorizerRef.getSession(token);
+    const userId = user.sub;
     const { serviceId, startTime } = req.body;
 
     const service = await prisma.service.findUnique({ where: { id: serviceId } });
@@ -55,13 +55,8 @@ router.get("/my-bookings", async (req, res) => {
 
   const token = authHeader.split(" ")[1];
   try {
-    const userInfo = await verifySessionToken({
-      client_id: process.env.AUTHORIZER_CLIENT_ID,
-      token,
-      authorizer_url: process.env.AUTHORIZER_URL,
-    });
-
-    const userId = userInfo.sub;
+    const { user } = await authorizerRef.getSession(token);
+    const userId = user.sub;
 
     const bookings = await prisma.booking.findMany({
       where: { userId },
