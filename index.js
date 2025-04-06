@@ -43,7 +43,7 @@ app.post("/services", async (req, res) => {
   res.status(201).json(service);
 });
 
-// 🔥 Create a new booking (with conflict check)
+// Create a new booking (with conflict check)
 app.post("/bookings", async (req, res) => {
   const { userId, serviceId, startTime } = req.body;
 
@@ -96,6 +96,60 @@ app.get("/bookings", async (req, res) => {
     console.error("Failed to fetch bookings:", err);
     res.status(500).json({ error: "Something went wrong" });
   }
+});
+
+// Availability engine
+
+app.get("/availability", async (req, res) => {
+  const { serviceId, date } = req.query;
+
+  if (!serviceId || !date) {
+    return res.status(400).json({ error: "Missing serviceId or date" });
+  }
+
+  const service = await prisma.service.findUnique({ where: { id: serviceId } });
+  if (!service) return res.status(404).json({ error: "Service not found" });
+
+  const durationMinutes = service.duration;
+
+  // Generate working hours (e.g. 9:00 to 17:00)
+  const startHour = 9;
+  const endHour = 17;
+  const dateStart = new Date(`${date}T${String(startHour).padStart(2, '0')}:00:00`);
+  const dateEnd = new Date(`${date}T${endHour}:00:00`);
+
+  // Fetch all bookings for the day
+  const bookings = await prisma.booking.findMany({
+    where: {
+      startTime: {
+        gte: dateStart,
+        lt: dateEnd,
+      },
+    },
+  });
+
+  const slots = [];
+  const stepMinutes = 15; // increment to check availability
+  const now = new Date(dateStart);
+
+  while (now.getTime() + durationMinutes * 60000 <= dateEnd.getTime()) {
+    const proposedStart = new Date(now);
+    const proposedEnd = new Date(now.getTime() + durationMinutes * 60000);
+
+    const conflict = bookings.some((b) => {
+      const bookingStart = new Date(b.startTime);
+      const bookingEnd = new Date(b.endTime);
+      return proposedStart < bookingEnd && proposedEnd > bookingStart;
+    });
+
+    if (!conflict) {
+      slots.push(proposedStart.toISOString());
+    }
+
+    now.setMinutes(now.getMinutes() + stepMinutes);
+  }
+
+  res.json(slots);
 });
 
 const PORT = process.env.PORT || 3000;
