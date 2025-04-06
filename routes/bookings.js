@@ -94,4 +94,56 @@ router.get("/services", async (req, res) => {
   }
 });
 
+// GET /availability
+router.get("/availability", async (req, res) => {
+  const { serviceId, date } = req.query;
+
+  if (!serviceId || !date) {
+    return res.status(400).json({ error: "Missing serviceId or date" });
+  }
+
+  try {
+    const service = await prisma.service.findUnique({
+      where: { id: serviceId }
+    });
+    if (!service) return res.status(404).json({ error: "Service not found" });
+
+    const startOfDay = new Date(`${date}T00:00:00.000Z`);
+    const endOfDay = new Date(`${date}T23:59:59.999Z`);
+
+    const bookings = await prisma.booking.findMany({
+      where: {
+        serviceId,
+        startTime: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+    });
+
+    const availability = [];
+    const durationMs = service.duration * 60 * 1000;
+
+    for (let hour = 8; hour < 20; hour++) {
+      for (let min = 0; min < 60; min += 15) {
+        const slotStart = new Date(`${date}T${hour.toString().padStart(2, "0")}:${min.toString().padStart(2, "0")}:00.000Z`);
+        const slotEnd = new Date(slotStart.getTime() + durationMs);
+
+        const isOverlap = bookings.some(b =>
+          (slotStart < b.endTime && slotEnd > b.startTime)
+        );
+
+        if (!isOverlap && slotEnd <= endOfDay) {
+          availability.push(slotStart.toISOString());
+        }
+      }
+    }
+
+    res.json({ availability });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch availability" });
+  }
+});
+
 export default router;
