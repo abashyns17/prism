@@ -7,6 +7,17 @@ const prisma = new PrismaClient();
 
 app.use(express.json());
 
+const cors = require("cors");
+
+app.use(cors({
+  origin: [
+    "http://localhost:3000", // for local dev
+    // "https://your-frontend-app.up.railway.app" // your deployed frontend
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type"]
+}));
+
 // Test route
 app.get("/", (req, res) => {
   res.send("API is working!");
