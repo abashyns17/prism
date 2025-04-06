@@ -151,6 +151,32 @@ app.get("/availability", async (req, res) => {
   res.json(slots);
 });
 
+// GET bookings for a specific user
+app.get("/my-bookings/:userId", async (req, res) => {
+  const { userId } = req.params;
+
+  if (!userId) {
+    return res.status(400).json({ error: "User ID is required" });
+  }
+
+  try {
+    const bookings = await prisma.booking.findMany({
+      where: { userId },
+      include: {
+        service: true,
+      },
+      orderBy: {
+        startTime: "desc",
+      },
+    });
+
+    res.json(bookings);
+  } catch (err) {
+    console.error("Failed to fetch user bookings:", err);
+    res.status(500).json({ error: "Something went wrong" });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
