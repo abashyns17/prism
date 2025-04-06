@@ -1,7 +1,7 @@
 // routes/bookings.js
 import express from "express";
 import { PrismaClient } from "@prisma/client";
-import Authorizer from "@authorizerdev/authorizer-js";
+import { Authorizer } from "@authorizerdev/authorizer-js";
 
 const router = express.Router();
 const prisma = new PrismaClient();
