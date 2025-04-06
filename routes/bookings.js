@@ -1,31 +1,20 @@
+// routes/bookings.js
 import express from "express";
-import { Authorizer } from "@authorizerdev/authorizer-js";
 import dotenv from "dotenv";
-import prisma from "../lib/prisma.js";
+import { Authorizer } from "@authorizerdev/authorizer-js";
+import { PrismaClient } from "@prisma/client";
 
 dotenv.config();
-
-console.log("Loaded ENV variables:");
-console.log("AUTHORIZER_URL:", process.env.AUTHORIZER_URL);
-console.log("AUTHORIZER_CLIENT_ID:", process.env.AUTHORIZER_CLIENT_ID);
-console.log("REDIRECT_URL:", process.env.REDIRECT_URL);
-
 const router = express.Router();
+const prisma = new PrismaClient();
 
-const { AUTHORIZER_URL, AUTHORIZER_CLIENT_ID } = process.env;
-
-if (!AUTHORIZER_URL || !AUTHORIZER_CLIENT_ID) {
-  console.error("Missing AUTHORIZER_URL or AUTHORIZER_CLIENT_ID in environment variables.");
-  process.exit(1); // Stop the server immediately
-}
-
-const authorizerRef = new Authorizer({
-  authorizerURL: AUTHORIZER_URL.trim(),
-  clientID: AUTHORIZER_CLIENT_ID.trim(),
-  redirectURL: process.env.REDIRECT_URL.trim()
+const authorizer = new Authorizer({
+  authorizerURL: process.env.AUTHORIZER_URL.trim(),
+  clientID: process.env.AUTHORIZER_CLIENT_ID.trim(),
+  redirectURL: process.env.REDIRECT_URL.trim() // now using env variable
 });
 
-// POST /bookings — create a booking
+// POST /bookings
 router.post("/bookings", async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -33,41 +22,39 @@ router.post("/bookings", async (req, res) => {
   }
 
   const token = authHeader.split(" ")[1];
-
   try {
-    const session = await authorizerRef.getSession({ Authorization: `Bearer ${token}` });
-    if (session.errors?.length) {
+    const { data: userInfo, errors } = await authorizer.getSession({ Authorization: `Bearer ${token}` });
+    if (errors?.length || !userInfo?.user) {
       return res.status(401).json({ error: "Invalid or expired token" });
     }
 
-    const userId = session.data.user.id;
+    const userId = userInfo.user.id;
     const { serviceId, startTime } = req.body;
 
     const service = await prisma.service.findUnique({ where: { id: serviceId } });
-    if (!service) {
-      return res.status(404).json({ error: "Service not found" });
-    }
+    if (!service) return res.status(404).json({ error: "Service not found" });
 
-    const endTime = new Date(new Date(startTime).getTime() + service.duration * 60000);
+    const start = new Date(startTime);
+    const end = new Date(start.getTime() + service.duration * 60000);
 
     const booking = await prisma.booking.create({
       data: {
         userId,
         serviceId,
-        startTime: new Date(startTime),
-        endTime,
+        startTime: start,
+        endTime: end,
         status: "confirmed",
       },
     });
 
     res.json(booking);
-  } catch (error) {
-    console.error("Booking error:", error);
-    res.status(500).json({ error: "Failed to create booking" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Booking failed" });
   }
 });
 
-// GET /my-bookings — fetch bookings for the authenticated user
+// GET /my-bookings
 router.get("/my-bookings", async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -75,29 +62,35 @@ router.get("/my-bookings", async (req, res) => {
   }
 
   const token = authHeader.split(" ")[1];
-
   try {
-    const session = await authorizerRef.getSession({ Authorization: `Bearer ${token}` });
-    if (session.errors?.length) {
+    const { data: userInfo, errors } = await authorizer.getSession({ Authorization: `Bearer ${token}` });
+    if (errors?.length || !userInfo?.user) {
       return res.status(401).json({ error: "Invalid or expired token" });
     }
 
-    const userId = session.data.user.id;
+    const userId = userInfo.user.id;
 
     const bookings = await prisma.booking.findMany({
       where: { userId },
-      include: {
-        service: true,
-      },
-      orderBy: {
-        startTime: "desc",
-      },
+      include: { service: true },
+      orderBy: { startTime: "desc" },
     });
 
     res.json(bookings);
-  } catch (error) {
-    console.error("Fetch bookings error:", error);
-    res.status(500).json({ error: "Failed to fetch bookings" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Failed to fetch bookings" });
+  }
+});
+
+// GET /services
+router.get("/services", async (req, res) => {
+  try {
+    const services = await prisma.service.findMany();
+    res.json(services);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to load services" });
   }
 });
 
