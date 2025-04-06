@@ -98,7 +98,7 @@ app.get("/bookings", async (req, res) => {
   }
 });
 
-// Availability engine
+// Availability engine!
 
 app.get("/availability", async (req, res) => {
   const { serviceId, date } = req.query;
