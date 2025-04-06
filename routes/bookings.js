@@ -5,6 +5,11 @@ import prisma from "../lib/prisma.js";
 
 dotenv.config();
 
+console.log("Loaded ENV variables:");
+console.log("AUTHORIZER_URL:", process.env.AUTHORIZER_URL);
+console.log("AUTHORIZER_CLIENT_ID:", process.env.AUTHORIZER_CLIENT_ID);
+console.log("REDIRECT_URL:", process.env.REDIRECT_URL);
+
 const router = express.Router();
 
 const { AUTHORIZER_URL, AUTHORIZER_CLIENT_ID } = process.env;
@@ -17,7 +22,7 @@ if (!AUTHORIZER_URL || !AUTHORIZER_CLIENT_ID) {
 const authorizerRef = new Authorizer({
   authorizerURL: AUTHORIZER_URL.trim(),
   clientID: AUTHORIZER_CLIENT_ID.trim(),
-  redirectURL: "", // not used on backend, but required
+  redirectURL: process.env.REDIRECT_URL.trim()
 });
 
 // POST /bookings — create a booking
