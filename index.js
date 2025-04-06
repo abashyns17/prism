@@ -103,8 +103,9 @@ app.get("/bookings", async (req, res) => {
 app.get("/availability", async (req, res) => {
   const { serviceId, date } = req.query;
 
-  if (!serviceId || !date) {
-    return res.status(400).json({ error: "Missing serviceId or date" });
+  //  Validate inputs
+  if (!serviceId || !date || isNaN(Date.parse(date))) {
+    return res.status(400).json({ error: "Invalid or missing serviceId/date" });
   }
 
   const service = await prisma.service.findUnique({ where: { id: serviceId } });
@@ -112,13 +113,11 @@ app.get("/availability", async (req, res) => {
 
   const durationMinutes = service.duration;
 
-  // Generate working hours (e.g. 9:00 to 17:00)
   const startHour = 9;
   const endHour = 17;
   const dateStart = new Date(`${date}T${String(startHour).padStart(2, '0')}:00:00`);
   const dateEnd = new Date(`${date}T${endHour}:00:00`);
 
-  // Fetch all bookings for the day
   const bookings = await prisma.booking.findMany({
     where: {
       startTime: {
@@ -129,7 +128,7 @@ app.get("/availability", async (req, res) => {
   });
 
   const slots = [];
-  const stepMinutes = 15; // increment to check availability
+  const stepMinutes = 15;
   const now = new Date(dateStart);
 
   while (now.getTime() + durationMinutes * 60000 <= dateEnd.getTime()) {
