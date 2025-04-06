@@ -126,7 +126,7 @@ router.get("/availability", async (req, res) => {
 
     for (let hour = 8; hour < 20; hour++) {
       for (let min = 0; min < 60; min += 15) {
-        const slotStart = new Date(`${date}T${hour.toString().padStart(2, "0")}:${min.toString().padStart(2, "0")}:00.000Z`);
+        const slotStart = new Date(`${date}T${hour.toString().padStart(2, "0")}:${min.toString().padStart(2, "0`")}:00.000Z`);
         const slotEnd = new Date(slotStart.getTime() + durationMs);
 
         const isOverlap = bookings.some(b =>
