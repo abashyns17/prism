@@ -1,31 +1,47 @@
-// routes/bookings.js
 import express from "express";
-import { PrismaClient } from "@prisma/client";
 import { Authorizer } from "@authorizerdev/authorizer-js";
+import dotenv from "dotenv";
+import prisma from "../lib/prisma.js";
+
+dotenv.config();
 
 const router = express.Router();
-const prisma = new PrismaClient();
+
+const { AUTHORIZER_URL, AUTHORIZER_CLIENT_ID } = process.env;
+
+if (!AUTHORIZER_URL || !AUTHORIZER_CLIENT_ID) {
+  console.error("Missing AUTHORIZER_URL or AUTHORIZER_CLIENT_ID in environment variables.");
+  process.exit(1); // Stop the server immediately
+}
 
 const authorizerRef = new Authorizer({
-  authorizerURL: process.env.AUTHORIZER_URL,
-  clientID: process.env.AUTHORIZER_CLIENT_ID,
+  authorizerURL: AUTHORIZER_URL.trim(),
+  clientID: AUTHORIZER_CLIENT_ID.trim(),
+  redirectURL: "", // not used on backend, but required
 });
 
-// POST /bookings — create a booking with token-authenticated user
+// POST /bookings — create a booking
 router.post("/bookings", async (req, res) => {
   const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith("Bearer ")) {
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Missing or invalid token" });
   }
 
   const token = authHeader.split(" ")[1];
+
   try {
-    const { user } = await authorizerRef.getSession(token);
-    const userId = user.sub;
+    const session = await authorizerRef.getSession({ Authorization: `Bearer ${token}` });
+    if (session.errors?.length) {
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+
+    const userId = session.data.user.id;
     const { serviceId, startTime } = req.body;
 
     const service = await prisma.service.findUnique({ where: { id: serviceId } });
-    if (!service) return res.status(404).json({ error: "Service not found" });
+    if (!service) {
+      return res.status(404).json({ error: "Service not found" });
+    }
 
     const endTime = new Date(new Date(startTime).getTime() + service.duration * 60000);
 
@@ -33,41 +49,50 @@ router.post("/bookings", async (req, res) => {
       data: {
         userId,
         serviceId,
-        startTime,
+        startTime: new Date(startTime),
         endTime,
         status: "confirmed",
       },
     });
 
     res.json(booking);
-  } catch (err) {
-    console.error(err);
-    return res.status(401).json({ error: "Invalid or expired token" });
+  } catch (error) {
+    console.error("Booking error:", error);
+    res.status(500).json({ error: "Failed to create booking" });
   }
 });
 
-// GET /my-bookings — get bookings for the authenticated user
+// GET /my-bookings — fetch bookings for the authenticated user
 router.get("/my-bookings", async (req, res) => {
   const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith("Bearer ")) {
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Missing or invalid token" });
   }
 
   const token = authHeader.split(" ")[1];
+
   try {
-    const { user } = await authorizerRef.getSession(token);
-    const userId = user.sub;
+    const session = await authorizerRef.getSession({ Authorization: `Bearer ${token}` });
+    if (session.errors?.length) {
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+
+    const userId = session.data.user.id;
 
     const bookings = await prisma.booking.findMany({
       where: { userId },
-      include: { service: true },
-      orderBy: { startTime: "desc" },
+      include: {
+        service: true,
+      },
+      orderBy: {
+        startTime: "desc",
+      },
     });
 
     res.json(bookings);
-  } catch (err) {
-    console.error(err);
-    res.status(401).json({ error: "Invalid or expired token" });
+  } catch (error) {
+    console.error("Fetch bookings error:", error);
+    res.status(500).json({ error: "Failed to fetch bookings" });
   }
 });
 
