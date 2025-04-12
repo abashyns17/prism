@@ -4,6 +4,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import bodyParser from "body-parser";
 import bookingsRoutes from "./routes/bookings.js";
+import servicesRouter from "./routes/services.js";
 
 dotenv.config();
 const app = express();
@@ -20,6 +21,8 @@ app.use(bodyParser.json());
 
 // Mount your booking routes
 app.use(bookingsRoutes);
+// Mount your service routes
+app.use(servicesRouter);
 
 // Health check
 app.get("/", (req, res) => {
