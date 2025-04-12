@@ -1,6 +1,6 @@
 import express from 'express';
 import { Authorizer } from '@authorizerdev/authorizer-js';
-import prisma from '../lib/prisma';
+import prisma from '../lib/prisma.js';
 
 const router = express.Router();
 
